@@ -190,6 +190,27 @@ function imageUrl(img) {
   return null;
 }
 
+// Extrait note + nb d'avis depuis aggregateRating. Les sites utilisent soit
+// ratingCount, soit reviewCount, donc on accepte les deux.
+function ratingInfo(r) {
+  const ar = r.aggregateRating;
+  if (!ar || !ar.ratingValue) return null;
+  const value = Number(ar.ratingValue);
+  if (!Number.isFinite(value)) return null;
+  const rawCount = ar.ratingCount ?? ar.reviewCount;
+  const count = rawCount != null ? Number(rawCount) : null;
+  return { value, count: Number.isFinite(count) ? count : null };
+}
+
+// Score de popularité = note × log10(1 + nb d'avis). Pondère la note par le
+// volume d'avis (4.9 sur 2 avis < 4.5 sur 500). Pas de note → score 0.
+function popularityScore(r) {
+  const info = ratingInfo(r);
+  if (!info) return 0;
+  const count = info.count || 0;
+  return info.value * Math.log10(1 + count);
+}
+
 function renderRecipe(r) {
   const card = document.createElement("article");
   card.className = "recipe";
@@ -225,9 +246,12 @@ function renderRecipe(r) {
     const yld = Array.isArray(r.recipeYield) ? r.recipeYield[0] : r.recipeYield;
     const s = document.createElement("span"); s.textContent = `👥 ${yld}`; meta.appendChild(s);
   }
-  if (r.aggregateRating?.ratingValue) {
+  const rating = ratingInfo(r);
+  if (rating) {
     const s = document.createElement("span");
-    s.textContent = `★ ${Number(r.aggregateRating.ratingValue).toFixed(1)}`;
+    s.textContent = rating.count
+      ? `★ ${rating.value.toFixed(1)} (${rating.count})`
+      : `★ ${rating.value.toFixed(1)}`;
     meta.appendChild(s);
   }
   if (meta.children.length) body.appendChild(meta);
@@ -307,22 +331,6 @@ function setStatus(msg, { loading = false, error = false } = {}) {
 
 // -------------------- Orchestration --------------------
 
-// Intercale les recettes par site pour ne pas avoir 6 Marmiton d'affilée :
-// [Marmiton#1, 750g#1, CuisineAZ#1, ..., Marmiton#2, 750g#2, ...].
-function interleave(buckets) {
-  const out = [];
-  let added = true;
-  let i = 0;
-  while (added) {
-    added = false;
-    for (const bucket of buckets) {
-      if (bucket[i]) { out.push(bucket[i]); added = true; }
-    }
-    i++;
-  }
-  return out;
-}
-
 async function findAndDisplay(query) {
   recipesEl.innerHTML = "";
   setStatus(`Recherche sur ${SITES.length} sites français…`, { loading: true });
@@ -347,7 +355,8 @@ async function findAndDisplay(query) {
       return fetched.filter(Boolean).slice(0, KEEP_PER_SITE);
     })
   );
-  const recipes = interleave(bucketsRecipes);
+  // Tri par popularité (note × log10(1 + nb d'avis)) toutes sources confondues.
+  const recipes = bucketsRecipes.flat().sort((a, b) => popularityScore(b) - popularityScore(a));
 
   if (!recipes.length) {
     setStatus("Recettes trouvées mais impossible d'extraire les détails. Réessaie ou change la requête.", { error: true });
