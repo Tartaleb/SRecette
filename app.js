@@ -23,8 +23,12 @@ const CANDIDATES_PER_SITE = 4; // URLs candidates à fetcher (sur-fetch pour abs
 // jusqu'à `max` <a href> qui matchent ce pattern depuis la page de résultats,
 // dédupe inclus. Les patterns ont été vérifiés sur le HTML réel des sites.
 
-function extractByPattern(doc, pattern, base, max) {
-  const hrefs = [...doc.querySelectorAll("a")]
+function extractByPattern(doc, pattern, base, max, container) {
+  // Scope à un conteneur de résultats si fourni — sinon les "Recettes populaires"
+  // de la sidebar polluent les vrais résultats (ex : Cuisine AZ).
+  const root = container ? doc.querySelector(container) : doc;
+  if (!root) return [];
+  const hrefs = [...root.querySelectorAll("a")]
     .map((a) => a.getAttribute("href"))
     .filter((h) => h && pattern.test(h));
   const seen = new Set();
@@ -47,12 +51,13 @@ const SITES = [
     name: "750g",
     search: (q) => `https://www.750g.com/recherche/?q=${encodeURIComponent(q)}`,
     // Pattern réel : /SLUG-rNNNNN.htm (ex : /poulet-roti-r4313.htm).
-    extract: (doc) => extractByPattern(doc, /\/[a-z0-9-]+-r\d+\.htm$/i, "https://www.750g.com", CANDIDATES_PER_SITE),
+    extract: (doc) => extractByPattern(doc, /\/[a-z0-9-]+-r\d+\.htm$/i, "https://www.750g.com", CANDIDATES_PER_SITE, ".card-listing"),
   },
   {
     name: "Cuisine AZ",
-    search: (q) => `https://www.cuisineaz.com/recettes/recherche_v2.aspx?recherche=${encodeURIComponent(q)}`,
-    extract: (doc) => extractByPattern(doc, /\/recettes\/[a-z0-9-]+-\d+\.aspx/i, "https://www.cuisineaz.com", CANDIDATES_PER_SITE),
+    // /recettes/recherche_v2.aspx renvoie maintenant 404 → /recettes/recherche_terme.aspx.
+    search: (q) => `https://www.cuisineaz.com/recettes/recherche_terme.aspx?recherche=${encodeURIComponent(q)}`,
+    extract: (doc) => extractByPattern(doc, /\/recettes\/[a-z0-9-]+-\d+\.aspx/i, "https://www.cuisineaz.com", CANDIDATES_PER_SITE, ".search_result_container"),
   },
 ];
 
