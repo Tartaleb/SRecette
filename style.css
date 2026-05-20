@@ -1,0 +1,196 @@
+:root {
+  --bg: #fff7f0;
+  --card: #ffffff;
+  --ink: #2a1c14;
+  --muted: #7b6555;
+  --accent: #b4451f;
+  --accent-ink: #ffffff;
+  --line: #ead7c5;
+  --soft: #fdeede;
+  --radius: 14px;
+  --shadow: 0 2px 12px rgba(180, 69, 31, 0.08);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.hero {
+  text-align: center;
+  margin: 8px 0 20px;
+}
+.hero h1 {
+  margin: 0;
+  font-size: 2.2rem;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+}
+.tagline {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field label, .field .label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.hint { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+.micro { color: var(--muted); font-size: 0.8rem; margin: 0; }
+
+textarea, input[type="text"], select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdfb;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+textarea:focus, input[type="text"]:focus, select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(180, 69, 31, 0.15);
+}
+textarea { resize: vertical; min-height: 70px; }
+
+.radios, .checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.radio, .check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fffdfb;
+  cursor: pointer;
+  font-size: 0.9rem;
+  user-select: none;
+  transition: background .12s, border-color .12s;
+}
+.radio input, .check input { accent-color: var(--accent); margin: 0; }
+.radio:has(input:checked), .check:has(input:checked) {
+  background: var(--soft);
+  border-color: var(--accent);
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.grid2 > div { display: flex; flex-direction: column; gap: 6px; }
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  transition: transform .05s, background .12s, border-color .12s;
+}
+button:active { transform: translateY(1px); }
+.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  flex: 1;
+  min-width: 200px;
+}
+.primary:hover { background: #973917; }
+.ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+}
+.ghost:hover { background: var(--soft); }
+
+.results {
+  margin-top: 22px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+.results h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+  color: var(--accent);
+}
+.query-preview {
+  background: var(--soft);
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--ink);
+  word-break: break-word;
+}
+.links {
+  display: grid;
+  gap: 8px;
+}
+.link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-decoration: none;
+  color: var(--ink);
+  background: #fffdfb;
+  transition: background .12s, border-color .12s;
+}
+.link-row:hover { background: var(--soft); border-color: var(--accent); }
+.link-row .name { font-weight: 600; }
+.link-row .desc { font-size: 0.8rem; color: var(--muted); }
+.link-row .go { color: var(--accent); font-weight: 700; }
+
+.footer-note { margin-top: 12px; }
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 1.9rem; }
+  .grid2 { grid-template-columns: 1fr; }
+  .primary { width: 100%; }
+}

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#b4451f" />
+<title>SRecette — Trouveur de recettes</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<main class="app">
+  <header class="hero">
+    <h1>SRecette</h1>
+    <p class="tagline">Trouve des recettes sur le web français.</p>
+  </header>
+
+  <form id="form" class="card" autocomplete="off">
+
+    <section class="field">
+      <label for="ingredients">Ingrédients dispo <span class="hint">(frigo, placards…)</span></label>
+      <textarea id="ingredients" rows="3" placeholder="poulet, courgette, riz, citron, crème fraîche…"></textarea>
+      <p class="micro">Séparés par des virgules ou des retours à la ligne.</p>
+    </section>
+
+    <section class="field">
+      <label for="envies">Envies / idées <span class="hint">(optionnel)</span></label>
+      <input id="envies" type="text" placeholder="curry, gratin, asiatique, réconfortant…" />
+    </section>
+
+    <section class="field">
+      <span class="label">Difficulté</span>
+      <div class="radios" role="radiogroup" aria-label="Difficulté">
+        <label class="radio"><input type="radio" name="difficulte" value="simple" checked /><span>Simple</span></label>
+        <label class="radio"><input type="radio" name="difficulte" value="moyen" /><span>Moyen</span></label>
+        <label class="radio"><input type="radio" name="difficulte" value="elabore" /><span>Élaboré</span></label>
+      </div>
+    </section>
+
+    <section class="field">
+      <span class="label">Ustensiles dispo</span>
+      <div class="checks" id="ustensiles">
+        <label class="check"><input type="checkbox" value="four" checked /><span>Four</span></label>
+        <label class="check"><input type="checkbox" value="poêle" checked /><span>Poêle</span></label>
+        <label class="check"><input type="checkbox" value="micro-ondes" checked /><span>Micro-ondes</span></label>
+        <label class="check"><input type="checkbox" value="air fryer" checked /><span>Air fryer</span></label>
+        <label class="check"><input type="checkbox" value="cocotte minute" checked /><span>Cocotte minute</span></label>
+        <label class="check"><input type="checkbox" value="mixeur" /><span>Mixeur / blender</span></label>
+        <label class="check"><input type="checkbox" value="robot pâtissier" /><span>Robot pâtissier</span></label>
+        <label class="check"><input type="checkbox" value="wok" /><span>Wok</span></label>
+        <label class="check"><input type="checkbox" value="plancha" /><span>Plancha</span></label>
+        <label class="check"><input type="checkbox" value="gaufrier" /><span>Gaufrier</span></label>
+      </div>
+    </section>
+
+    <section class="field grid2">
+      <div>
+        <label for="repas">Type de repas</label>
+        <select id="repas">
+          <option value="">Peu importe</option>
+          <option value="entrée">Entrée</option>
+          <option value="plat">Plat</option>
+          <option value="dessert">Dessert</option>
+          <option value="apéro">Apéro</option>
+          <option value="petit-déjeuner">Petit-déj</option>
+          <option value="goûter">Goûter</option>
+        </select>
+      </div>
+      <div>
+        <label for="temps">Temps max</label>
+        <select id="temps">
+          <option value="">Peu importe</option>
+          <option value="15 minutes">15 min</option>
+          <option value="30 minutes">30 min</option>
+          <option value="45 minutes">45 min</option>
+          <option value="1 heure">1 h</option>
+        </select>
+      </div>
+    </section>
+
+    <section class="field">
+      <label for="regime">Régime <span class="hint">(optionnel)</span></label>
+      <select id="regime">
+        <option value="">Aucun</option>
+        <option value="végétarien">Végétarien</option>
+        <option value="végan">Végan</option>
+        <option value="sans gluten">Sans gluten</option>
+        <option value="sans lactose">Sans lactose</option>
+        <option value="sans porc">Sans porc</option>
+      </select>
+    </section>
+
+    <div class="actions">
+      <button type="submit" class="primary">Trouver des recettes</button>
+      <button type="reset" class="ghost">Réinitialiser</button>
+    </div>
+  </form>
+
+  <section id="results" class="results" hidden>
+    <h2>Recherches prêtes</h2>
+    <p class="query-preview" id="queryPreview"></p>
+    <div class="links" id="links"></div>
+    <p class="micro footer-note">Astuce : clique sur un site pour ouvrir les résultats dans un nouvel onglet.</p>
+  </section>
+
+</main>
+<script src="app.js"></script>
+</body>
+</html>
