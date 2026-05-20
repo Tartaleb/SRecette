@@ -14,8 +14,8 @@ const PROXIES = [
   (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
 ];
 
-const KEEP_PER_SITE = 2;   // recettes valides à garder par site
-const CANDIDATES_PER_SITE = 4; // URLs candidates à fetcher (sur-fetch pour absorber les faux positifs)
+const KEEP_PER_SITE = 4;   // recettes valides à garder par site
+const CANDIDATES_PER_SITE = 8; // URLs candidates à fetcher (sur-fetch pour absorber les échecs de proxy + faux positifs)
 
 // -------------------- Extracteurs d'URLs par site --------------------
 //
