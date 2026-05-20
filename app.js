@@ -74,18 +74,6 @@ const SITES = [
     // filtre JSON-LD Recipe écarte les non-recettes en aval.
     extract: (doc) => extractByPattern(doc, /\/(?:recettes|inspiration|regal-nature)\/[a-z0-9/-]+-\d{6,}\b/i, "https://www.regal.fr", CANDIDATES_PER_SITE * 2),
   },
-  {
-    name: "Journal des Femmes",
-    desc: "Fiches claires, testées",
-    search: (q) => `https://cuisine.journaldesfemmes.fr/recherche/?q=${encodeURIComponent(q)}`,
-    scrape: false, // résultats chargés en JS, pas dans le HTML statique
-  },
-  {
-    name: "Cuisine Actuelle",
-    desc: "Cuisine du quotidien",
-    search: (q) => `https://www.cuisineactuelle.fr/recherche?text=${encodeURIComponent(q)}`,
-    scrape: false, // résultats chargés en JS, pas dans le HTML statique
-  },
 ];
 
 // -------------------- Construction de la requête --------------------
