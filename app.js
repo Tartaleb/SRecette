@@ -8,10 +8,10 @@ const queryPreview = document.getElementById("queryPreview");
 const statusEl = document.getElementById("status");
 
 // Proxies CORS publics (essayés dans l'ordre, premier qui marche).
+// corsproxy.io retiré : devenu payant ("Server-side requests are not allowed").
 const PROXIES = [
-  (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
-  (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
 ];
 
 const KEEP_PER_SITE = 2;   // recettes valides à garder par site
@@ -45,7 +45,7 @@ const SITES = [
   },
   {
     name: "750g",
-    search: (q) => `https://www.750g.com/recettes_${encodeURIComponent(q.replace(/\s+/g, "_"))}.htm`,
+    search: (q) => `https://www.750g.com/recherche/?q=${encodeURIComponent(q)}`,
     // Pattern réel : /SLUG-rNNNNN.htm (ex : /poulet-roti-r4313.htm).
     extract: (doc) => extractByPattern(doc, /\/[a-z0-9-]+-r\d+\.htm$/i, "https://www.750g.com", CANDIDATES_PER_SITE),
   },
