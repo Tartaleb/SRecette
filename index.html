@@ -96,10 +96,19 @@
   </form>
 
   <section id="results" class="results" hidden>
-    <h2>Recherches prêtes</h2>
-    <p class="query-preview" id="queryPreview"></p>
-    <div class="links" id="links"></div>
-    <p class="micro footer-note">Astuce : clique sur un site pour ouvrir les résultats dans un nouvel onglet.</p>
+    <div class="results-head">
+      <h2 id="resultsTitle">Recettes</h2>
+      <p class="query-preview" id="queryPreview"></p>
+    </div>
+
+    <div id="status" class="status" hidden></div>
+
+    <div id="recipes" class="recipes"></div>
+
+    <details class="more-sources">
+      <summary>Voir aussi sur d'autres sites</summary>
+      <div class="links" id="links"></div>
+    </details>
   </section>
 
 </main>
