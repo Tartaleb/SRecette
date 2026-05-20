@@ -367,8 +367,15 @@ async function findAndDisplay(query) {
       return fetched.filter(Boolean).slice(0, KEEP_PER_SITE);
     })
   );
-  // Tri par popularité (note × log10(1 + nb d'avis)) toutes sources confondues.
-  const recipes = bucketsRecipes.flat().sort((a, b) => popularityScore(b) - popularityScore(a));
+  // Filtre : on ne garde que les recettes notées >= 4/5. Sans note → exclues.
+  // Puis tri par popularité (note × log10(1 + nb d'avis)).
+  const recipes = bucketsRecipes
+    .flat()
+    .filter((r) => {
+      const info = ratingInfo(r);
+      return info && info.value >= 4;
+    })
+    .sort((a, b) => popularityScore(b) - popularityScore(a));
 
   if (!recipes.length) {
     setStatus("Recettes trouvées mais impossible d'extraire les détails. Réessaie ou change la requête.", { error: true });
