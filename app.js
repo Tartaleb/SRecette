@@ -7,15 +7,20 @@ const recipesEl = document.getElementById("recipes");
 const queryPreview = document.getElementById("queryPreview");
 const statusEl = document.getElementById("status");
 
-// Proxies CORS publics (essayés dans l'ordre, premier qui marche).
-// corsproxy.io retiré : devenu payant ("Server-side requests are not allowed").
+// Proxies CORS (essayés dans l'ordre, premier qui marche).
+// 1. Cloudflare Worker dédié (100k req/jour, pas de rate-limit côté tiers)
+// 2-3. Proxies publics en filet de sécurité si le Worker est down
 const PROXIES = [
+  (u) => `https://srecette-proxy.froyer44000.workers.dev/?url=${encodeURIComponent(u)}`,
   (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
   (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
 ];
 
 const KEEP_PER_SITE = 4;   // recettes valides à garder par site
 const CANDIDATES_PER_SITE = 8; // URLs candidates à fetcher (sur-fetch pour absorber les échecs de proxy + faux positifs)
+const STAGGER_MS = 80;     // délai entre fetches d'un même site, pour éviter de marteler le site upstream
+
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // -------------------- Extracteurs d'URLs par site --------------------
 //
@@ -351,12 +356,14 @@ async function findAndDisplay(query) {
 
   setStatus(`${totalCandidates} candidats trouvés, extraction des détails…`, { loading: true });
 
-  // 2. Pour chaque site, fetch les candidats en parallèle puis ne garde que les
-  // KEEP_PER_SITE premiers avec un JSON-LD Recipe valide (sur-fetch absorbe les
-  // dossiers/catégories qui matchent le pattern d'URL mais n'ont pas de Recipe).
+  // 2. Pour chaque site, fetch les candidats avec un léger décalage (stagger)
+  // pour ne pas marteler le site upstream. KEEP_PER_SITE premiers Recipe valides
+  // gardés (sur-fetch absorbe les faux positifs et échecs).
   const bucketsRecipes = await Promise.all(
     SITES.map(async (site, idx) => {
-      const fetched = await Promise.all(searches[idx].map((url) => fetchRecipe(url, site.name)));
+      const fetched = await Promise.all(
+        searches[idx].map((url, i) => delay(i * STAGGER_MS).then(() => fetchRecipe(url, site.name)))
+      );
       return fetched.filter(Boolean).slice(0, KEEP_PER_SITE);
     })
   );
