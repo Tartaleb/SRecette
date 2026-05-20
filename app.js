@@ -15,15 +15,16 @@ const PROXIES = [
   (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
 ];
 
-const MAX_PER_SITE = 2;
+const KEEP_PER_SITE = 2;   // recettes valides à garder par site
+const CANDIDATES_PER_SITE = 4; // URLs candidates à fetcher (sur-fetch pour absorber les faux positifs)
 
 // -------------------- Extracteurs d'URLs par site --------------------
 //
 // Chaque site expose ses recettes via un pattern d'URL spécifique. On extrait
-// tous les <a href> qui matchent ce pattern depuis la page de résultats, on
-// dédoublonne et on garde les MAX_PER_SITE premiers.
+// jusqu'à `max` <a href> qui matchent ce pattern depuis la page de résultats,
+// dédupe inclus. Les patterns ont été vérifiés sur le HTML réel des sites.
 
-function extractByPattern(doc, pattern, base) {
+function extractByPattern(doc, pattern, base, max) {
   const hrefs = [...doc.querySelectorAll("a")]
     .map((a) => a.getAttribute("href"))
     .filter((h) => h && pattern.test(h));
@@ -32,53 +33,60 @@ function extractByPattern(doc, pattern, base) {
   for (const h of hrefs) {
     const full = h.startsWith("http") ? h : base + (h.startsWith("/") ? h : "/" + h);
     if (!seen.has(full)) { seen.add(full); urls.push(full); }
-    if (urls.length >= MAX_PER_SITE) break;
+    if (urls.length >= max) break;
   }
   return urls;
 }
 
+// `scrape: true` → on extrait les recettes ; `false` → seulement lien de fallback
+// (les sites JS-rendered comme JdF/Cuisine Actuelle ne livrent pas d'URL de
+// recette dans leur HTML statique, donc on ne peut pas scraper sans navigateur).
 const SITES = [
   {
     name: "Marmiton",
+    desc: "Catalogue géant, avis lecteurs",
     search: (q) => `https://www.marmiton.org/recettes/recherche.aspx?aqt=${encodeURIComponent(q)}`,
-    extract: (doc) => extractByPattern(doc, /\/recettes\/recette[_-][a-z0-9_-]+\.aspx/i, "https://www.marmiton.org"),
+    scrape: true,
+    extract: (doc) => extractByPattern(doc, /\/recettes\/recette[_-][a-z0-9_-]+\.aspx/i, "https://www.marmiton.org", CANDIDATES_PER_SITE),
   },
   {
     name: "750g",
+    desc: "Recettes détaillées, vidéos",
     search: (q) => `https://www.750g.com/recettes_${encodeURIComponent(q.replace(/\s+/g, "_"))}.htm`,
-    extract: (doc) => extractByPattern(doc, /\/recette-[a-z0-9-]+-r\d+\.htm/i, "https://www.750g.com"),
+    scrape: true,
+    // Pattern réel : /SLUG-rNNNNN.htm (ex : /poulet-roti-r4313.htm).
+    extract: (doc) => extractByPattern(doc, /\/[a-z0-9-]+-r\d+\.htm$/i, "https://www.750g.com", CANDIDATES_PER_SITE),
   },
   {
     name: "Cuisine AZ",
+    desc: "Large catalogue, filtres",
     search: (q) => `https://www.cuisineaz.com/recettes/recherche_v2.aspx?recherche=${encodeURIComponent(q)}`,
-    extract: (doc) => extractByPattern(doc, /\/recettes\/[a-z0-9-]+-\d+\.aspx/i, "https://www.cuisineaz.com"),
-  },
-  {
-    name: "Journal des Femmes",
-    search: (q) => `https://cuisine.journaldesfemmes.fr/recherche/?q=${encodeURIComponent(q)}`,
-    extract: (doc) => extractByPattern(doc, /\/recette\/\d+-[a-z0-9-]+/i, "https://cuisine.journaldesfemmes.fr"),
-  },
-  {
-    name: "Cuisine Actuelle",
-    search: (q) => `https://www.cuisineactuelle.fr/recherche?text=${encodeURIComponent(q)}`,
-    extract: (doc) => extractByPattern(doc, /\/recettes?[-_]cuisine\/[a-z0-9-]+[_-]?\d*\.html/i, "https://www.cuisineactuelle.fr"),
+    scrape: true,
+    extract: (doc) => extractByPattern(doc, /\/recettes\/[a-z0-9-]+-\d+\.aspx/i, "https://www.cuisineaz.com", CANDIDATES_PER_SITE),
   },
   {
     name: "Régal",
+    desc: "Cuisine de saison FR",
     search: (q) => `https://www.regal.fr/recherche?keys=${encodeURIComponent(q)}`,
-    extract: (doc) => extractByPattern(doc, /\/recettes\/[a-z0-9-]+-\d+(?:_\d+)?\b/i, "https://www.regal.fr"),
+    scrape: true,
+    // Pattern : /(recettes|inspiration|regal-nature)/.../slug-NNNNNNN. Les URLs
+    // matchant ce pattern incluent aussi des dossiers — on sur-fetch et le
+    // filtre JSON-LD Recipe écarte les non-recettes en aval.
+    extract: (doc) => extractByPattern(doc, /\/(?:recettes|inspiration|regal-nature)\/[a-z0-9/-]+-\d{6,}\b/i, "https://www.regal.fr", CANDIDATES_PER_SITE * 2),
+  },
+  {
+    name: "Journal des Femmes",
+    desc: "Fiches claires, testées",
+    search: (q) => `https://cuisine.journaldesfemmes.fr/recherche/?q=${encodeURIComponent(q)}`,
+    scrape: false, // résultats chargés en JS, pas dans le HTML statique
+  },
+  {
+    name: "Cuisine Actuelle",
+    desc: "Cuisine du quotidien",
+    search: (q) => `https://www.cuisineactuelle.fr/recherche?text=${encodeURIComponent(q)}`,
+    scrape: false, // résultats chargés en JS, pas dans le HTML statique
   },
 ];
-
-// Liens de secours (mêmes sites, recherche externe).
-const FALLBACK_DESC = {
-  "Marmiton": "Catalogue géant, avis lecteurs",
-  "750g": "Recettes détaillées, vidéos",
-  "Cuisine AZ": "Large catalogue, filtres",
-  "Journal des Femmes": "Fiches claires, testées",
-  "Cuisine Actuelle": "Cuisine du quotidien",
-  "Régal": "Cuisine de saison FR",
-};
 
 // -------------------- Construction de la requête --------------------
 
@@ -323,7 +331,7 @@ function renderFallbackLinks(query) {
     a.href = site.search(query);
     a.target = "_blank";
     a.rel = "noopener noreferrer";
-    a.innerHTML = `<span><span class="name">${site.name}</span><br /><span class="desc">${FALLBACK_DESC[site.name] || ""}</span></span><span class="go">→</span>`;
+    a.innerHTML = `<span><span class="name">${site.name}</span><br /><span class="desc">${site.desc || ""}</span></span><span class="go">→</span>`;
     linksEl.appendChild(a);
   }
 }
@@ -362,29 +370,30 @@ function interleave(buckets) {
 
 async function findAndDisplay(query) {
   recipesEl.innerHTML = "";
-  setStatus(`Recherche sur ${SITES.length} sites français…`, { loading: true });
+  const scrapeSites = SITES.filter((s) => s.scrape);
+  setStatus(`Recherche sur ${scrapeSites.length} sites français…`, { loading: true });
 
-  // 1. Recherche en parallèle sur tous les sites.
-  const searches = await Promise.all(SITES.map((s) => searchSite(s, query)));
+  // 1. Recherche en parallèle sur les sites scrapables.
+  const searches = await Promise.all(scrapeSites.map((s) => searchSite(s, query)));
+  const totalCandidates = searches.reduce((sum, b) => sum + b.length, 0);
 
-  // Aplatit en (url, siteName) tout en gardant le regroupement pour l'intercalage.
-  const tasksBySite = SITES.map((site, idx) =>
-    searches[idx].map((url) => ({ url, siteName: site.name }))
-  );
-  const totalUrls = tasksBySite.reduce((sum, b) => sum + b.length, 0);
-
-  if (!totalUrls) {
+  if (!totalCandidates) {
     setStatus("Aucune recette trouvée. Essaie une requête différente, ou utilise les liens ci-dessous.", { error: true });
     return;
   }
 
-  setStatus(`${totalUrls} recettes trouvées, extraction des détails…`, { loading: true });
+  setStatus(`${totalCandidates} candidats trouvés, extraction des détails…`, { loading: true });
 
-  // 2. Fetch en parallèle des pages individuelles, par site pour pouvoir intercaler.
+  // 2. Pour chaque site, fetch les candidats en parallèle puis ne garde que les
+  // KEEP_PER_SITE premiers avec un JSON-LD Recipe valide (sur-fetch absorbe les
+  // dossiers/catégories qui matchent le pattern d'URL mais n'ont pas de Recipe).
   const bucketsRecipes = await Promise.all(
-    tasksBySite.map((bucket) => Promise.all(bucket.map((t) => fetchRecipe(t.url, t.siteName))))
+    scrapeSites.map(async (site, idx) => {
+      const fetched = await Promise.all(searches[idx].map((url) => fetchRecipe(url, site.name)));
+      return fetched.filter(Boolean).slice(0, KEEP_PER_SITE);
+    })
   );
-  const recipes = interleave(bucketsRecipes.map((b) => b.filter(Boolean)));
+  const recipes = interleave(bucketsRecipes);
 
   if (!recipes.length) {
     setStatus("Recettes trouvées mais impossible d'extraire les détails. Utilise les liens ci-dessous.", { error: true });
