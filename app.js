@@ -54,14 +54,6 @@ const SITES = [
     search: (q) => `https://www.cuisineaz.com/recettes/recherche_v2.aspx?recherche=${encodeURIComponent(q)}`,
     extract: (doc) => extractByPattern(doc, /\/recettes\/[a-z0-9-]+-\d+\.aspx/i, "https://www.cuisineaz.com", CANDIDATES_PER_SITE),
   },
-  {
-    name: "Régal",
-    search: (q) => `https://www.regal.fr/recherche?keys=${encodeURIComponent(q)}`,
-    // Pattern : /(recettes|inspiration|regal-nature)/.../slug-NNNNNNN. Les URLs
-    // matchant ce pattern incluent aussi des dossiers — on sur-fetch et le
-    // filtre JSON-LD Recipe écarte les non-recettes en aval.
-    extract: (doc) => extractByPattern(doc, /\/(?:recettes|inspiration|regal-nature)\/[a-z0-9/-]+-\d{6,}\b/i, "https://www.regal.fr", CANDIDATES_PER_SITE * 2),
-  },
 ];
 
 // -------------------- Construction de la requête --------------------
