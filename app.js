@@ -4,7 +4,6 @@
 const form = document.getElementById("form");
 const results = document.getElementById("results");
 const recipesEl = document.getElementById("recipes");
-const linksEl = document.getElementById("links");
 const queryPreview = document.getElementById("queryPreview");
 const statusEl = document.getElementById("status");
 
@@ -38,37 +37,26 @@ function extractByPattern(doc, pattern, base, max) {
   return urls;
 }
 
-// `scrape: true` → on extrait les recettes ; `false` → seulement lien de fallback
-// (les sites JS-rendered comme JdF/Cuisine Actuelle ne livrent pas d'URL de
-// recette dans leur HTML statique, donc on ne peut pas scraper sans navigateur).
 const SITES = [
   {
     name: "Marmiton",
-    desc: "Catalogue géant, avis lecteurs",
     search: (q) => `https://www.marmiton.org/recettes/recherche.aspx?aqt=${encodeURIComponent(q)}`,
-    scrape: true,
     extract: (doc) => extractByPattern(doc, /\/recettes\/recette[_-][a-z0-9_-]+\.aspx/i, "https://www.marmiton.org", CANDIDATES_PER_SITE),
   },
   {
     name: "750g",
-    desc: "Recettes détaillées, vidéos",
     search: (q) => `https://www.750g.com/recettes_${encodeURIComponent(q.replace(/\s+/g, "_"))}.htm`,
-    scrape: true,
     // Pattern réel : /SLUG-rNNNNN.htm (ex : /poulet-roti-r4313.htm).
     extract: (doc) => extractByPattern(doc, /\/[a-z0-9-]+-r\d+\.htm$/i, "https://www.750g.com", CANDIDATES_PER_SITE),
   },
   {
     name: "Cuisine AZ",
-    desc: "Large catalogue, filtres",
     search: (q) => `https://www.cuisineaz.com/recettes/recherche_v2.aspx?recherche=${encodeURIComponent(q)}`,
-    scrape: true,
     extract: (doc) => extractByPattern(doc, /\/recettes\/[a-z0-9-]+-\d+\.aspx/i, "https://www.cuisineaz.com", CANDIDATES_PER_SITE),
   },
   {
     name: "Régal",
-    desc: "Cuisine de saison FR",
     search: (q) => `https://www.regal.fr/recherche?keys=${encodeURIComponent(q)}`,
-    scrape: true,
     // Pattern : /(recettes|inspiration|regal-nature)/.../slug-NNNNNNN. Les URLs
     // matchant ce pattern incluent aussi des dossiers — on sur-fetch et le
     // filtre JSON-LD Recipe écarte les non-recettes en aval.
@@ -311,19 +299,6 @@ function renderRecipe(r) {
   return card;
 }
 
-function renderFallbackLinks(query) {
-  linksEl.innerHTML = "";
-  for (const site of SITES) {
-    const a = document.createElement("a");
-    a.className = "link-row";
-    a.href = site.search(query);
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
-    a.innerHTML = `<span><span class="name">${site.name}</span><br /><span class="desc">${site.desc || ""}</span></span><span class="go">→</span>`;
-    linksEl.appendChild(a);
-  }
-}
-
 function setStatus(msg, { loading = false, error = false } = {}) {
   statusEl.hidden = !msg;
   statusEl.className = "status" + (error ? " error" : "");
@@ -358,15 +333,14 @@ function interleave(buckets) {
 
 async function findAndDisplay(query) {
   recipesEl.innerHTML = "";
-  const scrapeSites = SITES.filter((s) => s.scrape);
-  setStatus(`Recherche sur ${scrapeSites.length} sites français…`, { loading: true });
+  setStatus(`Recherche sur ${SITES.length} sites français…`, { loading: true });
 
-  // 1. Recherche en parallèle sur les sites scrapables.
-  const searches = await Promise.all(scrapeSites.map((s) => searchSite(s, query)));
+  // 1. Recherche en parallèle sur tous les sites.
+  const searches = await Promise.all(SITES.map((s) => searchSite(s, query)));
   const totalCandidates = searches.reduce((sum, b) => sum + b.length, 0);
 
   if (!totalCandidates) {
-    setStatus("Aucune recette trouvée. Essaie une requête différente, ou utilise les liens ci-dessous.", { error: true });
+    setStatus("Aucune recette trouvée. Essaie une requête différente.", { error: true });
     return;
   }
 
@@ -376,7 +350,7 @@ async function findAndDisplay(query) {
   // KEEP_PER_SITE premiers avec un JSON-LD Recipe valide (sur-fetch absorbe les
   // dossiers/catégories qui matchent le pattern d'URL mais n'ont pas de Recipe).
   const bucketsRecipes = await Promise.all(
-    scrapeSites.map(async (site, idx) => {
+    SITES.map(async (site, idx) => {
       const fetched = await Promise.all(searches[idx].map((url) => fetchRecipe(url, site.name)));
       return fetched.filter(Boolean).slice(0, KEEP_PER_SITE);
     })
@@ -384,7 +358,7 @@ async function findAndDisplay(query) {
   const recipes = interleave(bucketsRecipes);
 
   if (!recipes.length) {
-    setStatus("Recettes trouvées mais impossible d'extraire les détails. Utilise les liens ci-dessous.", { error: true });
+    setStatus("Recettes trouvées mais impossible d'extraire les détails. Réessaie ou change la requête.", { error: true });
     return;
   }
 
@@ -403,7 +377,6 @@ form.addEventListener("submit", async (e) => {
 
   results.hidden = false;
   queryPreview.textContent = query ? `Requête : « ${query} »` : "Requête vide — ajoute au moins un ingrédient ou une envie.";
-  renderFallbackLinks(query || "recette");
   recipesEl.innerHTML = "";
 
   if (!query) {
@@ -418,7 +391,6 @@ form.addEventListener("submit", async (e) => {
 form.addEventListener("reset", () => {
   results.hidden = true;
   recipesEl.innerHTML = "";
-  linksEl.innerHTML = "";
   queryPreview.textContent = "";
   setStatus("");
 });

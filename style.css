@@ -255,41 +255,6 @@ button:active { transform: translateY(1px); }
 .recipe .source a { color: var(--accent); text-decoration: none; }
 .recipe .source a:hover { text-decoration: underline; }
 
-.more-sources {
-  margin-top: 18px;
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
-}
-.more-sources summary {
-  cursor: pointer;
-  color: var(--accent);
-  font-weight: 600;
-  padding: 4px 0;
-  font-size: 0.9rem;
-}
-.links {
-  display: grid;
-  gap: 8px;
-  margin-top: 10px;
-}
-.link-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  text-decoration: none;
-  color: var(--ink);
-  background: #fffdfb;
-  transition: background .12s, border-color .12s;
-}
-.link-row:hover { background: var(--soft); border-color: var(--accent); }
-.link-row .name { font-weight: 600; font-size: 0.9rem; }
-.link-row .desc { font-size: 0.78rem; color: var(--muted); }
-.link-row .go { color: var(--accent); font-weight: 700; }
-
 @media (max-width: 540px) {
   .recipe { grid-template-columns: 1fr; }
   .recipe .thumb { min-height: 160px; }
