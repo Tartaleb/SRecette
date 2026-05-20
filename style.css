@@ -228,6 +228,11 @@ button:active { transform: translateY(1px); }
   padding: 3px 8px;
   border-radius: 999px;
 }
+.recipe .meta .site-pill {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
 .recipe .desc { font-size: 0.85rem; color: var(--muted); margin: 0; }
 .recipe details { margin-top: 4px; font-size: 0.88rem; }
 .recipe details summary {

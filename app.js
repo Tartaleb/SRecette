@@ -1,5 +1,5 @@
-// SRecette — scrape Marmiton via un proxy CORS public, parse le JSON-LD schema.org/Recipe
-// et affiche les recettes directement sur la page. Fallback : liens vers d'autres sites FR.
+// SRecette — scrape plusieurs sites de recettes FR via un proxy CORS public,
+// parse le JSON-LD schema.org/Recipe et affiche les recettes directement sur la page.
 
 const form = document.getElementById("form");
 const results = document.getElementById("results");
@@ -8,16 +8,6 @@ const linksEl = document.getElementById("links");
 const queryPreview = document.getElementById("queryPreview");
 const statusEl = document.getElementById("status");
 
-// Sites FR pour les liens de secours.
-const FALLBACK_SITES = [
-  { name: "Marmiton", desc: "Catalogue géant, avis lecteurs", search: (q) => `https://www.marmiton.org/recettes/recherche.aspx?aqt=${encodeURIComponent(q)}` },
-  { name: "750g", desc: "Recettes détaillées, vidéos", search: (q) => `https://www.750g.com/recettes_${encodeURIComponent(q.replace(/\s+/g, "_"))}.htm` },
-  { name: "Cuisine AZ", desc: "Large catalogue, filtres", search: (q) => `https://www.cuisineaz.com/recettes/recherche_v2.aspx?recherche=${encodeURIComponent(q)}` },
-  { name: "Journal des Femmes", desc: "Fiches claires, testées", search: (q) => `https://cuisine.journaldesfemmes.fr/recherche/?q=${encodeURIComponent(q)}` },
-  { name: "Cuisine Actuelle", desc: "Cuisine du quotidien", search: (q) => `https://www.cuisineactuelle.fr/recherche?text=${encodeURIComponent(q)}` },
-  { name: "Régal", desc: "Cuisine de saison FR", search: (q) => `https://www.regal.fr/recherche?keys=${encodeURIComponent(q)}` },
-];
-
 // Proxies CORS publics (essayés dans l'ordre, premier qui marche).
 const PROXIES = [
   (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
@@ -25,7 +15,70 @@ const PROXIES = [
   (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
 ];
 
-const MAX_RECIPES = 6;
+const MAX_PER_SITE = 2;
+
+// -------------------- Extracteurs d'URLs par site --------------------
+//
+// Chaque site expose ses recettes via un pattern d'URL spécifique. On extrait
+// tous les <a href> qui matchent ce pattern depuis la page de résultats, on
+// dédoublonne et on garde les MAX_PER_SITE premiers.
+
+function extractByPattern(doc, pattern, base) {
+  const hrefs = [...doc.querySelectorAll("a")]
+    .map((a) => a.getAttribute("href"))
+    .filter((h) => h && pattern.test(h));
+  const seen = new Set();
+  const urls = [];
+  for (const h of hrefs) {
+    const full = h.startsWith("http") ? h : base + (h.startsWith("/") ? h : "/" + h);
+    if (!seen.has(full)) { seen.add(full); urls.push(full); }
+    if (urls.length >= MAX_PER_SITE) break;
+  }
+  return urls;
+}
+
+const SITES = [
+  {
+    name: "Marmiton",
+    search: (q) => `https://www.marmiton.org/recettes/recherche.aspx?aqt=${encodeURIComponent(q)}`,
+    extract: (doc) => extractByPattern(doc, /\/recettes\/recette[_-][a-z0-9_-]+\.aspx/i, "https://www.marmiton.org"),
+  },
+  {
+    name: "750g",
+    search: (q) => `https://www.750g.com/recettes_${encodeURIComponent(q.replace(/\s+/g, "_"))}.htm`,
+    extract: (doc) => extractByPattern(doc, /\/recette-[a-z0-9-]+-r\d+\.htm/i, "https://www.750g.com"),
+  },
+  {
+    name: "Cuisine AZ",
+    search: (q) => `https://www.cuisineaz.com/recettes/recherche_v2.aspx?recherche=${encodeURIComponent(q)}`,
+    extract: (doc) => extractByPattern(doc, /\/recettes\/[a-z0-9-]+-\d+\.aspx/i, "https://www.cuisineaz.com"),
+  },
+  {
+    name: "Journal des Femmes",
+    search: (q) => `https://cuisine.journaldesfemmes.fr/recherche/?q=${encodeURIComponent(q)}`,
+    extract: (doc) => extractByPattern(doc, /\/recette\/\d+-[a-z0-9-]+/i, "https://cuisine.journaldesfemmes.fr"),
+  },
+  {
+    name: "Cuisine Actuelle",
+    search: (q) => `https://www.cuisineactuelle.fr/recherche?text=${encodeURIComponent(q)}`,
+    extract: (doc) => extractByPattern(doc, /\/recettes?[-_]cuisine\/[a-z0-9-]+[_-]?\d*\.html/i, "https://www.cuisineactuelle.fr"),
+  },
+  {
+    name: "Régal",
+    search: (q) => `https://www.regal.fr/recherche?keys=${encodeURIComponent(q)}`,
+    extract: (doc) => extractByPattern(doc, /\/recettes\/[a-z0-9-]+-\d+(?:_\d+)?\b/i, "https://www.regal.fr"),
+  },
+];
+
+// Liens de secours (mêmes sites, recherche externe).
+const FALLBACK_DESC = {
+  "Marmiton": "Catalogue géant, avis lecteurs",
+  "750g": "Recettes détaillées, vidéos",
+  "Cuisine AZ": "Large catalogue, filtres",
+  "Journal des Femmes": "Fiches claires, testées",
+  "Cuisine Actuelle": "Cuisine du quotidien",
+  "Régal": "Cuisine de saison FR",
+};
 
 // -------------------- Construction de la requête --------------------
 
@@ -84,30 +137,17 @@ async function fetchProxied(url) {
   throw lastErr || new Error("Tous les proxies CORS ont échoué");
 }
 
-// -------------------- Scraping Marmiton + JSON-LD --------------------
+// -------------------- Scraping + JSON-LD --------------------
 
-async function searchMarmiton(query) {
-  const searchUrl = `https://www.marmiton.org/recettes/recherche.aspx?aqt=${encodeURIComponent(query)}`;
-  const html = await fetchProxied(searchUrl);
-  const doc = new DOMParser().parseFromString(html, "text/html");
-
-  // Marmiton expose les recettes via des <a href="/recettes/recette_*.aspx">.
-  const hrefs = [...doc.querySelectorAll("a")]
-    .map((a) => a.getAttribute("href"))
-    .filter((h) => h && /\/recettes\/recette[_-][^"]+\.aspx/i.test(h));
-
-  // Normalise + dédup.
-  const seen = new Set();
-  const urls = [];
-  for (const h of hrefs) {
-    const full = h.startsWith("http") ? h : `https://www.marmiton.org${h}`;
-    if (!seen.has(full)) {
-      seen.add(full);
-      urls.push(full);
-    }
-    if (urls.length >= MAX_RECIPES) break;
+async function searchSite(site, query) {
+  try {
+    const html = await fetchProxied(site.search(query));
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return site.extract(doc);
+  } catch (e) {
+    console.warn(`Échec recherche ${site.name}`, e);
+    return [];
   }
-  return urls;
 }
 
 function findRecipesInLdJson(data) {
@@ -124,7 +164,7 @@ function findRecipesInLdJson(data) {
   return found;
 }
 
-async function fetchRecipe(url) {
+async function fetchRecipe(url, siteName) {
   try {
     const html = await fetchProxied(url);
     const doc = new DOMParser().parseFromString(html, "text/html");
@@ -133,7 +173,7 @@ async function fetchRecipe(url) {
       try {
         const json = JSON.parse(s.textContent);
         const recipes = findRecipesInLdJson(json);
-        if (recipes.length) return { ...recipes[0], _sourceUrl: url };
+        if (recipes.length) return { ...recipes[0], _sourceUrl: url, _siteName: siteName };
       } catch { /* JSON invalide, on continue */ }
     }
   } catch (e) {
@@ -145,7 +185,6 @@ async function fetchRecipe(url) {
 // -------------------- Affichage --------------------
 
 function parseISODuration(iso) {
-  // PT1H30M -> "1 h 30 min"
   if (!iso || typeof iso !== "string") return null;
   const m = iso.match(/^PT(?:(\d+)H)?(?:(\d+)M)?/);
   if (!m) return null;
@@ -197,9 +236,11 @@ function renderRecipe(r) {
   h3.appendChild(a);
   body.appendChild(h3);
 
-  // Metadata pills.
   const meta = document.createElement("div");
   meta.className = "meta";
+  if (r._siteName) {
+    const s = document.createElement("span"); s.className = "site-pill"; s.textContent = r._siteName; meta.appendChild(s);
+  }
   const total = parseISODuration(r.totalTime) || parseISODuration(r.cookTime);
   if (total) {
     const s = document.createElement("span"); s.textContent = `⏱ ${total}`; meta.appendChild(s);
@@ -215,7 +256,6 @@ function renderRecipe(r) {
   }
   if (meta.children.length) body.appendChild(meta);
 
-  // Description courte.
   if (r.description) {
     const p = document.createElement("p");
     p.className = "desc";
@@ -224,7 +264,6 @@ function renderRecipe(r) {
     body.appendChild(p);
   }
 
-  // Ingrédients (ouvert par défaut).
   const ingredients = toArray(r.recipeIngredient).map(stripHtml).filter(Boolean);
   if (ingredients.length) {
     const det = document.createElement("details");
@@ -238,12 +277,14 @@ function renderRecipe(r) {
     body.appendChild(det);
   }
 
-  // Étapes.
   const steps = toArray(r.recipeInstructions)
     .map((s) => {
       if (typeof s === "string") return s;
       if (s && s.text) return s.text;
       if (s && s.name) return s.name;
+      if (s && s.itemListElement) {
+        return toArray(s.itemListElement).map((it) => it.text || it.name || "").join("\n");
+      }
       return "";
     })
     .map(stripHtml)
@@ -260,14 +301,13 @@ function renderRecipe(r) {
     body.appendChild(det);
   }
 
-  // Source.
   const src = document.createElement("p");
   src.className = "source";
   const sourceA = document.createElement("a");
   sourceA.href = r._sourceUrl;
   sourceA.target = "_blank";
   sourceA.rel = "noopener noreferrer";
-  sourceA.textContent = "Voir sur Marmiton →";
+  sourceA.textContent = `Voir sur ${r._siteName || "le site"} →`;
   src.appendChild(sourceA);
   body.appendChild(src);
 
@@ -277,13 +317,13 @@ function renderRecipe(r) {
 
 function renderFallbackLinks(query) {
   linksEl.innerHTML = "";
-  for (const site of FALLBACK_SITES) {
+  for (const site of SITES) {
     const a = document.createElement("a");
     a.className = "link-row";
     a.href = site.search(query);
     a.target = "_blank";
     a.rel = "noopener noreferrer";
-    a.innerHTML = `<span><span class="name">${site.name}</span><br /><span class="desc">${site.desc}</span></span><span class="go">→</span>`;
+    a.innerHTML = `<span><span class="name">${site.name}</span><br /><span class="desc">${FALLBACK_DESC[site.name] || ""}</span></span><span class="go">→</span>`;
     linksEl.appendChild(a);
   }
 }
@@ -304,34 +344,58 @@ function setStatus(msg, { loading = false, error = false } = {}) {
 
 // -------------------- Orchestration --------------------
 
+// Intercale les recettes par site pour ne pas avoir 6 Marmiton d'affilée :
+// [Marmiton#1, 750g#1, CuisineAZ#1, ..., Marmiton#2, 750g#2, ...].
+function interleave(buckets) {
+  const out = [];
+  let added = true;
+  let i = 0;
+  while (added) {
+    added = false;
+    for (const bucket of buckets) {
+      if (bucket[i]) { out.push(bucket[i]); added = true; }
+    }
+    i++;
+  }
+  return out;
+}
+
 async function findAndDisplay(query) {
   recipesEl.innerHTML = "";
-  setStatus("Recherche en cours sur Marmiton…", { loading: true });
+  setStatus(`Recherche sur ${SITES.length} sites français…`, { loading: true });
 
-  let urls;
-  try {
-    urls = await searchMarmiton(query);
-  } catch (e) {
-    setStatus("Impossible d'atteindre Marmiton (proxy CORS bloqué ?). Utilise les liens ci-dessous.", { error: true });
+  // 1. Recherche en parallèle sur tous les sites.
+  const searches = await Promise.all(SITES.map((s) => searchSite(s, query)));
+
+  // Aplatit en (url, siteName) tout en gardant le regroupement pour l'intercalage.
+  const tasksBySite = SITES.map((site, idx) =>
+    searches[idx].map((url) => ({ url, siteName: site.name }))
+  );
+  const totalUrls = tasksBySite.reduce((sum, b) => sum + b.length, 0);
+
+  if (!totalUrls) {
+    setStatus("Aucune recette trouvée. Essaie une requête différente, ou utilise les liens ci-dessous.", { error: true });
     return;
   }
 
-  if (!urls.length) {
-    setStatus("Aucune recette trouvée pour cette requête. Essaie avec moins d'ingrédients ou les liens ci-dessous.", { error: true });
-    return;
-  }
+  setStatus(`${totalUrls} recettes trouvées, extraction des détails…`, { loading: true });
 
-  setStatus(`${urls.length} recettes trouvées, récupération des détails…`, { loading: true });
-
-  // On fetch les recettes en parallèle pour la rapidité.
-  const recipes = (await Promise.all(urls.map(fetchRecipe))).filter(Boolean);
+  // 2. Fetch en parallèle des pages individuelles, par site pour pouvoir intercaler.
+  const bucketsRecipes = await Promise.all(
+    tasksBySite.map((bucket) => Promise.all(bucket.map((t) => fetchRecipe(t.url, t.siteName))))
+  );
+  const recipes = interleave(bucketsRecipes.map((b) => b.filter(Boolean)));
 
   if (!recipes.length) {
     setStatus("Recettes trouvées mais impossible d'extraire les détails. Utilise les liens ci-dessous.", { error: true });
     return;
   }
 
-  setStatus("");
+  // Récap par site.
+  const counts = {};
+  recipes.forEach((r) => { counts[r._siteName] = (counts[r._siteName] || 0) + 1; });
+  const summary = Object.entries(counts).map(([n, c]) => `${n} (${c})`).join(", ");
+  setStatus(`${recipes.length} recettes — ${summary}`);
   recipes.forEach((r) => recipesEl.appendChild(renderRecipe(r)));
 }
 
